@@ -1,7 +1,7 @@
 # cassandra
 
 ## What does it do
-Installs a single node within a three node Cassandra cluster
+Installs a three node Cassandra cluster
 
 built via https://github.com/mgis-architects/terraform/tree/master/azure/cassandra
 
