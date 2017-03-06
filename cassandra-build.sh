@@ -80,6 +80,16 @@ function installRPMs()
     fi
 }
 
+function addLimits()
+{
+    cp /etc/security/limits.conf /etc/security/limits.conf.preCassandra
+    
+    cat >> /etc/security/limits.conf << EOFaddLimits
+*           soft    nproc     16384
+*           hard    nproc     16384
+EOFaddLimits
+}
+
 function fixSwap()
 {
     cat /etc/waagent.conf | while read LINE
@@ -181,7 +191,7 @@ function allocateStorage()
 
 function mountMedia() {
 
-    if [ -f ${cassandraMedia} ]; then
+    if [ -f ${cassandraMediaLocation}/${cassandraMedia} ]; then
         log "mountMedia(): Filesystem already mounted"
     else
         umount /mnt/software
@@ -259,11 +269,27 @@ seeds=${ipPrefix}.4,${ipPrefix}.5,${ipPrefix}.6
 EOF_PROPERTIES
 
 	mkdir -p /u01/datastax/dse/install /u01/datastax/dse/templates /u01/datastax/dse/logs /u01/datastax/dse/data /u01/datastax/dse/commitlog /u01/datastax/dse/hints /u01/datastax/dse/saved_caches
-	cp ${cassandraMedia} /u01/datastax/dse/install
+	cp ${cassandraMediaLocation}/${cassandraMedia} /u01/datastax/dse/install
 	mv /tmp/dseinstall.properties /u01/datastax/dse/install
 	chmod 755 /u01/datastax/dse/install/*run
 	cd /u01/datastax/dse/install
-	./DataStaxEnterprise-5.0.7-linux-x64-installer.run --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
+	./${cassandraMedia} --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
+    
+    let cnt=1
+    while [ $cnt -le 10 ]; do
+        STR="sleep $cnt of 10 ... wait for DSE startup"
+        echo $STR
+        log $STR
+        sleep 30
+        let DONE=`grep "DSE startup complete" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+        if [ $DONE -gt 0 ]; then
+            break;
+        fi
+        let cnt=$cnt+1
+    done       
+    if [ $cnt -gt 10 ]; then
+        fatalError "Exiting... DSE startup still pending after 300 seconds"
+    fi
 }
 
 function configureCluster() {
@@ -274,7 +300,7 @@ function configureCluster() {
 	# installing a single datacenter per workload type
 
 	cat > /tmp/cassandra.yaml << EOF_CASS_YAML
-cluster_name: \'${clusterName}\'
+cluster_name: ${clusterName}
 num_tokens: 128
 hinted_handoff_enabled: true
 hinted_handoff_throttle_in_kb: 1024
@@ -374,11 +400,48 @@ enable_scripted_user_defined_functions: false
 windows_timer_interval: 1
 EOF_CASS_YAML
 
+
 	service dse stop	2>&1 |tee $l_log
+
+    let NUM=`grep "DSE shutdown complete." /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+    let cnt=1
+    while [ $cnt -le 10 ]; do
+        STR="${HOSTNAME}: sleep $cnt of 10 ... wait for DSE shutdown"
+        echo $STR
+        log $STR
+        sleep 30
+        let DONE=`grep "DSE shutdown complete." /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+        if [ $DONE -gt $NUM ]; then
+            break;
+        fi
+        let cnt=$cnt+1
+    done       
+    if [ $cnt -gt 10 ]; then
+        fatalError "${HOSTNAME}: Exiting... DSE shutdown still pending after 300 seconds"
+    fi
+    
     rm -rf /u01/datastax/dse/data/*
     cp /etc/dse/cassandra/cassandra.yaml /etc/dse/cassandra/cassandra.yaml.old
 	cp /tmp/cassandra.yaml /etc/dse/cassandra/cassandra.yaml
     service dse start	2>&1 |tee -a $l_log
+
+    let NUM=`grep "DSE startup complete" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+    let cnt=1
+    while [ $cnt -le 10 ]; do
+        STR="${HOSTNAME}: sleep $cnt of 10 ... wait for DSE startup"
+        echo $STR
+        log $STR
+        sleep 30
+        let DONE=`grep "DSE startup complete" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+        if [ $DONE -gt $NUM ]; then
+            break;
+        fi
+        let cnt=$cnt+1
+    done       
+    if [ $cnt -gt 10 ]; then
+        fatalError "${HOSTNAME}: Exiting... DSE startup still pending after 300 seconds"
+    fi
+ 
 	nodetool status	2>&1 |tee -a $l_log
 }
 
@@ -399,6 +462,7 @@ function run()
     fi
 
     eval `grep u01_Disk_Size_In_GB $INI_FILE`
+	eval `grep cassandraMediaLocation $INI_FILE`
 	eval `grep cassandraMedia $INI_FILE`
 	eval `grep cassandraPortRange $INI_FILE`
 	eval `grep ipPrefix $INI_FILE`
@@ -412,6 +476,9 @@ function run()
     l_str=""
     if [ -z $u01_Disk_Size_In_GB ]; then
         l_str+="${g_prog}(): u01_Disk_Size_In_GB not found in $INI_FILE; "
+    fi
+    if [ -z $cassandraMediaLocation ]; then
+        l_str+="${g_prog}(): cassandraMediaLocation not found in $INI_FILE; "
     fi
     if [ -z $cassandraMedia ]; then
         l_str+="${g_prog}(): cassandraMedia not found in $INI_FILE; "
@@ -432,12 +499,13 @@ function run()
     # function calls
     fixSwap
 	fixTime
-    installRPMs 
+    installRPMs
+    addLimits
     openFirewall
 	allocateStorage
     mountMedia
     installCassandra
-	configureCluster    
+    configureCluster    
 }
 
 
