@@ -259,11 +259,11 @@ seeds=${ipPrefix}.4,${ipPrefix}.5,${ipPrefix}.6
 EOF_PROPERTIES
 
 	mkdir -p /u01/datastax/dse/install /u01/datastax/dse/templates /u01/datastax/dse/logs /u01/datastax/dse/data /u01/datastax/dse/commitlog /u01/datastax/dse/hints /u01/datastax/dse/saved_caches
-	mv ${cassandraMedia} /u01/datastax/dse/install
+	cp ${cassandraMedia} /u01/datastax/dse/install
 	mv /tmp/dseinstall.properties /u01/datastax/dse/install
 	chmod 755 /u01/datastax/dse/install/*run
 	cd /u01/datastax/dse/install
-	./DataStaxEnterprise-5.0.2-linux-x64-installer.run --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
+	./DataStaxEnterprise-5.0.7-linux-x64-installer.run --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
 }
 
 function configureCluster() {
