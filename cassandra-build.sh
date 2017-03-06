@@ -181,12 +181,9 @@ function allocateStorage()
 
 function mountMedia() {
 
-    if [ -f /mnt/software/cassandra12201/p24816159_122014_Linux-x86-64.zip ]; then
-    
+    if [ -f ${cassandraMedia} ]; then
         log "mountMedia(): Filesystem already mounted"
-        
     else
-    
         umount /mnt/software
     
         mkdir -p /mnt/software
@@ -220,10 +217,6 @@ EOF2
 
         mount -a
         
-        if [ ! -f /mnt/software/cassandra12301/V839824-01.zip ]; then
-            fatalError "installGridHome(): media missing /mnt/software/cassandra12301/V839824-01.zip"
-        fi
-
     fi
     
 }
@@ -232,10 +225,6 @@ installCassandra()
 {
     local l_log=$LOG_DIR/$g_prog.install.$$.installCassandra.log
     
-    if [ ! -f ${cassandraMedia} ]; then
-        fatalError "installGridHome(): media missing ${cassandraMedia}"
-    fi
-	
 	cat > /tmp/dseinstall.properties << EOF_PROPERTIES
 prefix=/u01/datastax/dse
 cassandra_yaml_template=/u01/datastax/dse/templates/cassandra.yaml
