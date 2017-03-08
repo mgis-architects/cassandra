@@ -403,14 +403,14 @@ EOF_CASS_YAML
 
 	service dse stop	2>&1 |tee $l_log
 
-    let NUM=`grep "DSE shutdown complete." /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+    let NUM=`grep "MessagingService.java:1091 - MessagingService has terminated the accept() thread" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
     let cnt=1
     while [ $cnt -le 10 ]; do
         STR="${HOSTNAME}: sleep $cnt of 10 ... wait for DSE shutdown"
         echo $STR
         log $STR
         sleep 30
-        let DONE=`grep "DSE shutdown complete." /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
+        let DONE=`grep "MessagingService.java:1091 - MessagingService has terminated the accept() thread" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
         if [ $DONE -gt $NUM ]; then
             break;
         fi
@@ -421,8 +421,9 @@ EOF_CASS_YAML
     fi
     
     rm -rf /u01/datastax/dse/data/*
+    unalias cp
     cp /etc/dse/cassandra/cassandra.yaml /etc/dse/cassandra/cassandra.yaml.old
-	cp /tmp/cassandra.yaml /etc/dse/cassandra/cassandra.yaml
+    cp -f /tmp/cassandra.yaml /etc/dse/cassandra/cassandra.yaml
     service dse start	2>&1 |tee -a $l_log
 
     let NUM=`grep "DSE startup complete" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
@@ -547,5 +548,4 @@ run
 
 log "$g_prog ended cleanly"
 exit $RETVAL
-
 
