@@ -108,8 +108,8 @@ function fixSwap()
 }
 
 function fixTime() {
-	timedatectl set-timezone UTC
-	date
+    timedatectl set-timezone UTC
+    date
 }
 
 createFilesystem()
@@ -235,7 +235,7 @@ installCassandra()
 {
     local l_log=$LOG_DIR/$g_prog.install.$$.installCassandra.log
     
-	cat > /tmp/dseinstall.properties << EOF_PROPERTIES
+    cat > /tmp/dseinstall.properties << EOF_PROPERTIES
 prefix=/u01/datastax/dse
 cassandra_yaml_template=/u01/datastax/dse/templates/cassandra.yaml
 dse_yaml_template=/u01/datastax/dse/templates/dse.yaml
@@ -265,15 +265,15 @@ cassandra_saved_caches_dir=/u01/datastax/dse/saved_caches
 enable_vnodes=1
 listen_address=
 ring_name=${ringName}
-seeds=${ipPrefix}.4,${ipPrefix}.5,${ipPrefix}.6
+seeds=${cassandraSeeds}
 EOF_PROPERTIES
 
-	mkdir -p /u01/datastax/dse/install /u01/datastax/dse/templates /u01/datastax/dse/logs /u01/datastax/dse/data /u01/datastax/dse/commitlog /u01/datastax/dse/hints /u01/datastax/dse/saved_caches
-	cp ${cassandraMediaLocation}/${cassandraMedia} /u01/datastax/dse/install
-	mv /tmp/dseinstall.properties /u01/datastax/dse/install
-	chmod 755 /u01/datastax/dse/install/*run
-	cd /u01/datastax/dse/install
-	./${cassandraMedia} --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
+    mkdir -p /u01/datastax/dse/install /u01/datastax/dse/templates /u01/datastax/dse/logs /u01/datastax/dse/data /u01/datastax/dse/commitlog /u01/datastax/dse/hints /u01/datastax/dse/saved_caches
+    cp ${cassandraMediaLocation}/${cassandraMedia} /u01/datastax/dse/install
+    mv /tmp/dseinstall.properties /u01/datastax/dse/install
+    chmod 755 /u01/datastax/dse/install/*run
+    cd /u01/datastax/dse/install
+    ./${cassandraMedia} --optionfile /u01/datastax/dse/install/dseinstall.properties --mode unattended 2>&1 |tee $l_log
     
     let cnt=1
     while [ $cnt -le 10 ]; do
@@ -296,10 +296,10 @@ function configureCluster() {
 
     local l_log=$LOG_DIR/$g_prog.install.$$.installCassandra.log
 
-	# https://docs.datastax.com/en/latest-dse/datastax_enterprise/production/singleDCperWorkloadType.html
-	# installing a single datacenter per workload type
+    # https://docs.datastax.com/en/latest-dse/datastax_enterprise/production/singleDCperWorkloadType.html
+    # installing a single datacenter per workload type
 
-	cat > /tmp/cassandra.yaml << EOF_CASS_YAML
+    cat > /tmp/cassandra.yaml << EOF_CASS_YAML
 cluster_name: ${clusterName}
 num_tokens: 128
 hinted_handoff_enabled: true
@@ -401,7 +401,7 @@ windows_timer_interval: 1
 EOF_CASS_YAML
 
 
-	service dse stop	2>&1 |tee $l_log
+    service dse stop    2>&1 |tee $l_log
 
     let NUM=`grep "MessagingService.java:1091 - MessagingService has terminated the accept() thread" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
     let cnt=1
@@ -424,7 +424,7 @@ EOF_CASS_YAML
     unalias cp
     cp /etc/dse/cassandra/cassandra.yaml /etc/dse/cassandra/cassandra.yaml.old
     cp -f /tmp/cassandra.yaml /etc/dse/cassandra/cassandra.yaml
-    service dse start	2>&1 |tee -a $l_log
+    service dse start    2>&1 |tee -a $l_log
 
     let NUM=`grep "DSE startup complete" /u01/datastax/dse/logs/cassandra/system.log | wc -l 2>&1`
     let cnt=1
@@ -443,7 +443,7 @@ EOF_CASS_YAML
         fatalError "${HOSTNAME}: Exiting... DSE startup still pending after 300 seconds"
     fi
  
-	nodetool status	2>&1 |tee -a $l_log
+    nodetool status    2>&1 |tee -a $l_log
 }
 
 
@@ -463,12 +463,14 @@ function run()
     fi
 
     eval `grep u01_Disk_Size_In_GB $INI_FILE`
-	eval `grep cassandraMediaLocation $INI_FILE`
-	eval `grep cassandraMedia $INI_FILE`
-	eval `grep cassandraPortRange $INI_FILE`
-	eval `grep ipPrefix $INI_FILE`
-	eval `grep ringName $INI_FILE`
-	eval `grep clusterName $INI_FILE`
+    eval `grep cassandraMediaLocation $INI_FILE`
+    eval `grep cassandraMedia $INI_FILE`
+    eval `grep cassandraPortRange $INI_FILE`
+    eval `grep cassandraSeeds $INI_FILE`
+    eval `grep ipPrefix $INI_FILE`
+    eval `grep ringName $INI_FILE`
+    eval `grep isCluster $INI_FILE`
+    eval `grep clusterName $INI_FILE`
 
     l_str=""
     if [ -z $cassandraPortRange ]; then
@@ -483,6 +485,9 @@ function run()
     fi
     if [ -z $cassandraMedia ]; then
         l_str+="${g_prog}(): cassandraMedia not found in $INI_FILE; "
+    fi
+    if [ -z $cassandraSeeds ]; then
+        l_str+="${g_prog}(): cassandraSeeds not found in $INI_FILE; "
     fi
     if [ -z $ipPrefix ]; then
         l_str+="${g_prog}(): ipPrefix not found in $INI_FILE; "
@@ -499,14 +504,14 @@ function run()
     
     # function calls
     fixSwap
-	fixTime
+    fixTime
     installRPMs
     addLimits
     openFirewall
-	allocateStorage
+    allocateStorage
     mountMedia
     installCassandra
-    configureCluster    
+    if [ "$isCluster" == "true" ]; then configureCluster; fi
 }
 
 
