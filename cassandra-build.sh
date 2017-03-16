@@ -265,7 +265,7 @@ cassandra_saved_caches_dir=/u01/datastax/dse/saved_caches
 enable_vnodes=1
 listen_address=
 ring_name=${ringName}
-seeds=${cassandraSeeds}
+seeds=
 EOF_PROPERTIES
 
     mkdir -p /u01/datastax/dse/install /u01/datastax/dse/templates /u01/datastax/dse/logs /u01/datastax/dse/data /u01/datastax/dse/commitlog /u01/datastax/dse/hints /u01/datastax/dse/saved_caches
@@ -453,6 +453,29 @@ function openFirewall() {
     firewall-cmd --zone=public --list-all
 }
 
+function createSampleKeyspace() {
+
+    mkdir ~/.cassandra
+
+    cat > ~/.cassandra/cqlshrc << EOF
+[connection]
+hostname=$HOSTNAME
+port=9042
+EOF
+
+    cqlsh << EOF2
+drop  KEYSPACE AVRO1;
+CREATE KEYSPACE AVRO1 WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
+CREATE TABLE AVRO1.CUSTOMERS (  
+    CUSTOMER_ID int,
+    FIRST_NAME text,
+    LAST_NAME text,
+primary key (customer_id) );
+SELECT * FROM system_schema.tables where table_name = 'customers' ALLOW FILTERING;
+EOF2
+
+}
+
 function run()
 {
     eval `grep platformEnvironment $INI_FILE`
@@ -511,6 +534,7 @@ function run()
     allocateStorage
     mountMedia
     installCassandra
+    createSampleKeyspace
     if [ "$isCluster" == "true" ]; then configureCluster; fi
 }
 
